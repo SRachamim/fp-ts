@@ -382,45 +382,49 @@ export function mapNullable<A, B>(f: (a: A) => B | null | undefined): (ma: Optio
 // non-pipeables
 // -------------------------------------------------------------------------------------
 
-const map_: Monad1<URI>['map'] = (fa, f) => (isNone(fa) ? none : some(f(fa.value)))
-const ap_: Monad1<URI>['ap'] = (fab, fa) => (isNone(fab) ? none : isNone(fa) ? none : some(fab.value(fa.value)))
-const chain_: Monad1<URI>['chain'] = (ma, f) => (isNone(ma) ? none : f(ma.value))
-const reduce_: Foldable1<URI>['reduce'] = (fa, b, f) => (isNone(fa) ? b : f(b, fa.value))
-const foldMap_: Foldable1<URI>['foldMap'] = (M) => (fa, f) => (isNone(fa) ? M.empty : f(fa.value))
-const reduceRight_: Foldable1<URI>['reduceRight'] = (fa, b, f) => (isNone(fa) ? b : f(fa.value, b))
-const traverse_ = <F>(F: ApplicativeHKT<F>) => <A, B>(ta: Option<A>, f: (a: A) => HKT<F, B>): HKT<F, Option<B>> => {
-  return isNone(ta) ? F.of(none) : F.map(f(ta.value), some)
+const map_: Monad1<URI>['map'] = (fa, f) => pipe(fa, map(f))
+const ap_: Monad1<URI>['ap'] = (fab, fa) => pipe(fab, ap(fa))
+const chain_: Monad1<URI>['chain'] = (ma, f) => pipe(ma, chain(f))
+const reduce_: Foldable1<URI>['reduce'] = (fa, b, f) => pipe(fa, reduce(b, f))
+const foldMap_: Foldable1<URI>['foldMap'] = (M) => {
+  const foldMapM = foldMap(M)
+  return (fa, f) => pipe(fa, foldMapM(f))
 }
-const alt_: Alt1<URI>['alt'] = (fa, that) => (isNone(fa) ? that() : fa)
-const filter_ = <A>(fa: Option<A>, predicate: Predicate<A>): Option<A> =>
-  isNone(fa) ? none : predicate(fa.value) ? fa : none
-const filterMap_: Filterable1<URI>['filterMap'] = (ma, f) => (isNone(ma) ? none : f(ma.value))
-const extend_: Extend1<URI>['extend'] = (wa, f) => (isNone(wa) ? none : some(f(wa)))
-const partition_ = <A>(fa: Option<A>, predicate: Predicate<A>): Separated<Option<A>, Option<A>> => {
-  return {
-    left: filter_(fa, (a) => !predicate(a)),
-    right: filter_(fa, predicate)
-  }
+const reduceRight_: Foldable1<URI>['reduceRight'] = (fa, b, f) => pipe(fa, reduceRight(b, f))
+const traverse_: Traversable1<URI>['traverse'] = <F>(
+  F: ApplicativeHKT<F>
+): (<A, B>(ta: Option<A>, f: (a: A) => HKT<F, B>) => HKT<F, Option<B>>) => {
+  const traverseF = traverse(F)
+  return (ta, f) => pipe(ta, traverseF(f))
 }
-const partitionMap_: Filterable1<URI>['partitionMap'] = (fa, f) => separate(map_(fa, f))
-const wither_ = <F>(F: ApplicativeHKT<F>) => <A, B>(fa: Option<A>, f: (a: A) => HKT<F, Option<B>>): HKT<F, Option<B>> =>
-  isNone(fa) ? F.of(none) : f(fa.value)
-const wilt_ = <F>(F: ApplicativeHKT<F>) => <A, B, C>(
+/* istanbul ignore next */
+const alt_: Alt1<URI>['alt'] = (fa, that) => pipe(fa, alt(that))
+const filter_: Filterable1<URI>['filter'] = <A>(fa: Option<A>, predicate: Predicate<A>): Option<A> =>
+  pipe(fa, filter(predicate))
+/* istanbul ignore next */
+const filterMap_: Filterable1<URI>['filterMap'] = (fa, f) => pipe(fa, filterMap(f))
+/* istanbul ignore next */
+const extend_: Extend1<URI>['extend'] = (wa, f) => pipe(wa, extend(f))
+/* istanbul ignore next */
+const partition_: Filterable1<URI>['partition'] = <A>(
   fa: Option<A>,
-  f: (a: A) => HKT<F, Either<B, C>>
-): HKT<F, Separated<Option<B>, Option<C>>> => {
-  const o = map_(fa, (a) =>
-    F.map(f(a), (e) => ({
-      left: getLeft(e),
-      right: getRight(e)
-    }))
-  )
-  return isNone(o)
-    ? F.of({
-        left: none,
-        right: none
-      })
-    : o.value
+  predicate: Predicate<A>
+): Separated<Option<A>, Option<A>> => pipe(fa, partition(predicate))
+/* istanbul ignore next */
+const partitionMap_: Filterable1<URI>['partitionMap'] = (fa, f) => pipe(fa, partitionMap(f))
+/* istanbul ignore next */
+const wither_: Witherable1<URI>['wither'] = <F>(
+  F: ApplicativeHKT<F>
+): (<A, B>(fa: Option<A>, f: (a: A) => HKT<F, Option<B>>) => HKT<F, Option<B>>) => {
+  const witherF = wither(F)
+  return (fa, f) => pipe(fa, witherF(f))
+}
+/* istanbul ignore next */
+const wilt_: Witherable1<URI>['wilt'] = <F>(
+  F: ApplicativeHKT<F>
+): (<A, B, C>(fa: Option<A>, f: (a: A) => HKT<F, Either<B, C>>) => HKT<F, Separated<Option<B>, Option<C>>>) => {
+  const wiltF = wilt(F)
+  return (fa, f) => pipe(fa, wiltF(f))
 }
 // -------------------------------------------------------------------------------------
 // pipeables
@@ -430,7 +434,8 @@ const wilt_ = <F>(F: ApplicativeHKT<F>) => <A, B, C>(
  * @category Functor
  * @since 2.0.0
  */
-export const map: <A, B>(f: (a: A) => B) => (fa: Option<A>) => Option<B> = (f) => (fa) => map_(fa, f)
+export const map: <A, B>(f: (a: A) => B) => (fa: Option<A>) => Option<B> = (f) => (fa) =>
+  isNone(fa) ? none : some(f(fa.value))
 
 /**
  * Apply a function to an argument under a type constructor.
@@ -438,7 +443,8 @@ export const map: <A, B>(f: (a: A) => B) => (fa: Option<A>) => Option<B> = (f) =
  * @category Apply
  * @since 2.0.0
  */
-export const ap: <A>(fa: Option<A>) => <B>(fab: Option<(a: A) => B>) => Option<B> = (fa) => (fab) => ap_(fab, fa)
+export const ap: <A>(fa: Option<A>) => <B>(fab: Option<(a: A) => B>) => Option<B> = (fa) => (fab) =>
+  isNone(fab) ? none : isNone(fa) ? none : some(fab.value(fa.value))
 
 /**
  * Combine two effectful actions, keeping only the result of the first.
@@ -476,7 +482,8 @@ export const of: Applicative1<URI>['of'] = some
  * @category Monad
  * @since 2.0.0
  */
-export const chain: <A, B>(f: (a: A) => Option<B>) => (ma: Option<A>) => Option<B> = (f) => (ma) => chain_(ma, f)
+export const chain: <A, B>(f: (a: A) => Option<B>) => (ma: Option<A>) => Option<B> = (f) => (ma) =>
+  isNone(ma) ? none : f(ma.value)
 
 /**
  * Composes computations in sequence, using the return value of one computation to determine the next computation and
@@ -500,6 +507,15 @@ export const chainFirst: <A, B>(f: (a: A) => Option<B>) => (ma: Option<A>) => Op
 export const flatten: <A>(mma: Option<Option<A>>) => Option<A> =
   /*#__PURE__*/
   chain(identity)
+
+/**
+ * Less strict version of [`alt`](#alt).
+ *
+ * @category Alt
+ * @since 2.9.0
+ */
+export const altW: <B>(that: Lazy<Option<B>>) => <A>(fa: Option<A>) => Option<A | B> = (that) => (fa) =>
+  isNone(fa) ? that() : fa
 
 /**
  * Identifies an associative operation on a type constructor. It is similar to `Semigroup`, except that it applies to
@@ -529,7 +545,7 @@ export const flatten: <A>(mma: Option<Option<A>>) => Option<A> =
  * @category Alt
  * @since 2.0.0
  */
-export const alt: <A>(that: Lazy<Option<A>>) => (fa: Option<A>) => Option<A> = (that) => (fa) => alt_(fa, that)
+export const alt: <A>(that: Lazy<Option<A>>) => (fa: Option<A>) => Option<A> = altW
 
 /**
  * @category Alternative
@@ -547,7 +563,8 @@ export const throwError: MonadThrow1<URI>['throwError'] = () => none
  * @category Extend
  * @since 2.0.0
  */
-export const extend: <A, B>(f: (wa: Option<A>) => B) => (wa: Option<A>) => Option<B> = (f) => (ma) => extend_(ma, f)
+export const extend: <A, B>(f: (wa: Option<A>) => B) => (wa: Option<A>) => Option<B> = (f) => (wa) =>
+  isNone(wa) ? none : some(f(wa))
 
 /**
  * @category Extend
@@ -561,23 +578,22 @@ export const duplicate: <A>(ma: Option<A>) => Option<Option<A>> =
  * @category Foldable
  * @since 2.0.0
  */
-export const reduce: <A, B>(b: B, f: (b: B, a: A) => B) => (fa: Option<A>) => B = (b, f) => (fa) => reduce_(fa, b, f)
+export const reduce: <A, B>(b: B, f: (b: B, a: A) => B) => (fa: Option<A>) => B = (b, f) => (fa) =>
+  isNone(fa) ? b : f(b, fa.value)
 
 /**
  * @category Foldable
  * @since 2.0.0
  */
-export const foldMap: <M>(M: Monoid<M>) => <A>(f: (a: A) => M) => (fa: Option<A>) => M = (M) => {
-  const foldMapM = foldMap_(M)
-  return (f) => (fa) => foldMapM(fa, f)
-}
+export const foldMap: <M>(M: Monoid<M>) => <A>(f: (a: A) => M) => (fa: Option<A>) => M = (M) => (f) => (fa) =>
+  isNone(fa) ? M.empty : f(fa.value)
 
 /**
  * @category Foldable
  * @since 2.0.0
  */
 export const reduceRight: <A, B>(b: B, f: (a: A, b: B) => B) => (fa: Option<A>) => B = (b, f) => (fa) =>
-  reduceRight_(fa, b, f)
+  isNone(fa) ? b : f(fa.value, b)
 
 /**
  * @category Compactable
@@ -606,14 +622,14 @@ export const separate: <A, B>(ma: Option<Either<A, B>>) => Separated<Option<A>, 
 export const filter: {
   <A, B extends A>(refinement: Refinement<A, B>): (fa: Option<A>) => Option<B>
   <A>(predicate: Predicate<A>): (fa: Option<A>) => Option<A>
-} = <A>(predicate: Predicate<A>) => (fa: Option<A>) => filter_(fa, predicate)
+} = <A>(predicate: Predicate<A>) => (fa: Option<A>) => (isNone(fa) ? none : predicate(fa.value) ? fa : none)
 
 /**
  * @category Filterable
  * @since 2.0.0
  */
 export const filterMap: <A, B>(f: (a: A) => Option<B>) => (fa: Option<A>) => Option<B> = (f) => (fa) =>
-  filterMap_(fa, f)
+  isNone(fa) ? none : f(fa.value)
 
 /**
  * @category Filterable
@@ -622,7 +638,12 @@ export const filterMap: <A, B>(f: (a: A) => Option<B>) => (fa: Option<A>) => Opt
 export const partition: {
   <A, B extends A>(refinement: Refinement<A, B>): (fa: Option<A>) => Separated<Option<A>, Option<B>>
   <A>(predicate: Predicate<A>): (fa: Option<A>) => Separated<Option<A>, Option<A>>
-} = <A>(predicate: Predicate<A>) => (fa: Option<A>) => partition_(fa, predicate)
+} = <A>(predicate: Predicate<A>) => (fa: Option<A>) => {
+  return {
+    left: filter_(fa, (a) => !predicate(a)),
+    right: filter_(fa, predicate)
+  }
+}
 
 /**
  * @category Filterable
@@ -630,18 +651,15 @@ export const partition: {
  */
 export const partitionMap: <A, B, C>(
   f: (a: A) => Either<B, C>
-) => (fa: Option<A>) => Separated<Option<B>, Option<C>> = (f) => (fa) => partitionMap_(fa, f)
+) => (fa: Option<A>) => Separated<Option<B>, Option<C>> = (f) => flow(map(f), separate)
 
 /**
  * @category Traversable
  * @since 2.6.3
  */
-export const traverse: PipeableTraverse1<URI> = <F>(
-  F: ApplicativeHKT<F>
-): (<A, B>(f: (a: A) => HKT<F, B>) => (ta: Option<A>) => HKT<F, Option<B>>) => {
-  const traverseF = traverse_(F)
-  return (f) => (ta) => traverseF(ta, f)
-}
+export const traverse: PipeableTraverse1<URI> = <F>(F: ApplicativeHKT<F>) => <A, B>(f: (a: A) => HKT<F, B>) => (
+  ta: Option<A>
+): HKT<F, Option<B>> => (isNone(ta) ? F.of(none) : F.map(f(ta.value), some))
 
 /**
  * @category Traversable
@@ -649,30 +667,32 @@ export const traverse: PipeableTraverse1<URI> = <F>(
  */
 export const sequence: Traversable1<URI>['sequence'] = <F>(F: ApplicativeHKT<F>) => <A>(
   ta: Option<HKT<F, A>>
-): HKT<F, Option<A>> => {
-  return isNone(ta) ? F.of(none) : F.map(ta.value, some)
-}
+): HKT<F, Option<A>> => (isNone(ta) ? F.of(none) : F.map(ta.value, some))
 
 /**
  * @category Witherable
  * @since 2.6.5
  */
-export const wither: PipeableWither1<URI> = <F>(
-  F: ApplicativeHKT<F>
-): (<A, B>(f: (a: A) => HKT<F, Option<B>>) => (ta: Option<A>) => HKT<F, Option<B>>) => {
-  const witherF = wither_(F)
-  return (f) => (ta) => witherF(ta, f)
-}
+export const wither: PipeableWither1<URI> = <F>(F: ApplicativeHKT<F>) => <A, B>(f: (a: A) => HKT<F, Option<B>>) => (
+  fa: Option<A>
+): HKT<F, Option<B>> => (isNone(fa) ? F.of(none) : f(fa.value))
 
 /**
  * @category Witherable
  * @since 2.6.5
  */
-export const wilt: PipeableWilt1<URI> = <F>(
-  F: ApplicativeHKT<F>
-): (<A, B, C>(f: (a: A) => HKT<F, Either<B, C>>) => (wa: Option<A>) => HKT<F, Separated<Option<B>, Option<C>>>) => {
-  const wiltF = wilt_(F)
-  return (f) => (ta) => wiltF(ta, f)
+export const wilt: PipeableWilt1<URI> = <F>(F: ApplicativeHKT<F>) => <A, B, C>(f: (a: A) => HKT<F, Either<B, C>>) => (
+  fa: Option<A>
+): HKT<F, Separated<Option<B>, Option<C>>> => {
+  return isNone(fa)
+    ? F.of({
+        left: none,
+        right: none
+      })
+    : F.map(f(fa.value), (e) => ({
+        left: getLeft(e),
+        right: getRight(e)
+      }))
 }
 
 // -------------------------------------------------------------------------------------

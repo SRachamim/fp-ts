@@ -14,6 +14,7 @@ Added in v2.0.0
 
 - [Alt](#alt)
   - [alt](#alt)
+  - [altW](#altw)
 - [Alternative](#alternative)
   - [zero](#zero)
 - [Apply](#apply)
@@ -171,6 +172,18 @@ export declare const alt: <A>(that: Lazy<A[]>) => (fa: A[]) => A[]
 ```
 
 Added in v2.0.0
+
+## altW
+
+Less strict version of [`alt`](#alt).
+
+**Signature**
+
+```ts
+export declare const altW: <B>(that: Lazy<B[]>) => <A>(fa: A[]) => (B | A)[]
+```
+
+Added in v2.9.0
 
 # Alternative
 
